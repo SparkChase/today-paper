@@ -1,0 +1,90 @@
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@font-face {
+  font-family: "Kevin Sans";
+  src: url("./fonts/KevinSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Kevin Sans";
+  src: url("./fonts/KevinSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Kevin Sans Hand";
+  src: url("./fonts/KevinSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  size-adjust: 88%;
+  ascent-override: 120.45%;
+  descent-override: 60.23%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Kevin Sans Hand";
+  src: url("./fonts/KevinSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+  size-adjust: 88%;
+  ascent-override: 120.45%;
+  descent-override: 60.23%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Kevin Sans Script";
+  src: url("./fonts/KevinSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  size-adjust: 75%;
+  ascent-override: 128.00%;
+  descent-override: 40.00%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Kevin Sans Script";
+  src: url("./fonts/KevinSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+  size-adjust: 75%;
+  ascent-override: 128.00%;
+  descent-override: 40.00%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Kevin Sans Type";
+  src: url("./fonts/KevinSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  size-adjust: 82%;
+  ascent-override: 85.37%;
+  descent-override: 36.59%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Kevin Sans Type";
+  src: url("./fonts/KevinSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+  size-adjust: 82%;
+  ascent-override: 85.37%;
+  descent-override: 36.59%;
+  line-gap-override: 0%;
+}
