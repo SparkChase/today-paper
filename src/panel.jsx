@@ -11,6 +11,7 @@ import './panel.css'
 import { offsetDay, parseDay } from './dates.js'
 import { pageEntries } from './notebook.js'
 import { NoteSection } from './notes.jsx'
+import { BackupDialog, ShareDialog } from './paper-tools.jsx'
 import { useNotebook, useToday } from './use-notebook.js'
 
 const edge = { left: 'torn', bottom: 'deckle' }
@@ -139,12 +140,17 @@ function App() {
   const today = useToday()
   const [selected, setSelected] = useState(null)
   const [addingSection, setAddingSection] = useState(false)
+  const [paperTool, setPaperTool] = useState(null)
   const [error, setError] = useState('')
   const date = selected ?? today
   const current = date === today
   const activeSections = notebook?.sections.filter((section) =>
     current || pageEntries(notebook, date, section.id).length > 0,
   )
+  const tasks = notebook ? pageEntries(notebook, date, 'tasks') : []
+  const stamped = tasks.length > 0 && tasks.every(({ done }) => done)
+  const hasEntries = Object.values(notebook?.pages[date] ?? {}).some((entries) => entries.length > 0)
+  const share = () => setPaperTool({ type: 'share', date })
   const copiedIds = new Set(Object.values(notebook?.pages[today] ?? {}).flatMap(
     (entries) => entries.map((entry) => entry.copiedFrom),
   ))
@@ -175,10 +181,16 @@ function App() {
             <h1>今天这张纸</h1>
             <Doodle className="pencil-doodle" name="pencil" size={55} rotate={-11} seed="header-pencil" />
           </header>
-          {!current && (
-            <div className="past-actions">
-              <button type="button" className="text-action return-action" onClick={() => select(today)}>
-                <Icon name="arrow-right" size={15} />回到今天
+          {notebook && (
+            <div className="page-tools">
+              {!current && (
+                <button type="button" className="text-action return-action" onClick={() => select(today)}>
+                  <Icon name="arrow-right" size={15} />回到今天
+                </button>
+              )}
+              {hasEntries && !stamped && <button type="button" className="text-action" onClick={share}>分享这页</button>}
+              <button type="button" className="text-action archive-action" onClick={() => setPaperTool({ type: 'backup' })}>
+                <Icon name="archive" size={15} />备份与导入
               </button>
             </div>
           )}
@@ -205,6 +217,7 @@ function App() {
                   current={current}
                   copiedIds={copiedIds}
                   save={saveEntry}
+                  onShare={stamped && section.id === 'tasks' ? share : undefined}
                 />
               ))}
               {current && (
@@ -223,6 +236,8 @@ function App() {
         </Paper>
       </div>
       {addingSection && <NewSection onClose={() => setAddingSection(false)} save={save} />}
+      {paperTool?.type === 'backup' && <BackupDialog notebook={notebook} onClose={() => setPaperTool(null)} />}
+      {paperTool?.type === 'share' && <ShareDialog notebook={notebook} date={paperTool.date} onClose={() => setPaperTool(null)} />}
     </main>
   )
 }

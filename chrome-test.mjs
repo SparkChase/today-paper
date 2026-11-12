@@ -166,6 +166,40 @@ try {
   await task.click()
   await task.and(page.locator('[aria-checked="true"]')).waitFor()
   await note('待办').getByText('收工').waitFor()
+  await button('分享这页').click()
+  const share = page.getByRole('dialog', { name: '分享这页' })
+  const sharePreview = share.getByRole('img', { name: '分享长图预览' })
+  const pngSize = async () => sharePreview.evaluate(async (image) => {
+    await image.decode()
+    return { width: image.naturalWidth, height: image.naturalHeight }
+  })
+  await sharePreview.waitFor()
+  const tasksOnly = await pngSize()
+  assert.equal(await share.getByRole('checkbox', { name: '感想' }).isChecked(), false)
+  await share.getByRole('checkbox', { name: '随手记' }).check()
+  await page.waitForFunction((height) => document.querySelector('.share-preview')?.naturalHeight > height, tasksOnly.height)
+  const pngDownload = page.waitForEvent('download')
+  await share.getByRole('button', { name: '下载 PNG' }).click()
+  const pngFile = await pngDownload
+  assert.equal(pngFile.suggestedFilename(), `今天这张纸-${current}.png`)
+  const png = await readFile(await pngFile.path())
+  assert.equal(png.subarray(1, 4).toString(), 'PNG')
+  assert.equal(png.readUInt32BE(16), tasksOnly.width)
+  assert.ok(png.readUInt32BE(20) > tasksOnly.height)
+  // Capture the PNG sent to the clipboard API without replacing the host clipboard.
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, 'write', {
+      value: async ([item]) => {
+        const blob = await item.getType('image/png')
+        window.testClipboardPng = [...new Uint8Array(await blob.arrayBuffer())]
+      },
+    })
+  })
+  await share.getByRole('button', { name: '复制图片' }).click()
+  await share.getByText('已复制图片。').waitFor()
+  assert.deepEqual(Buffer.from(await page.evaluate(() => window.testClipboardPng)), png)
+  await share.getByRole('button', { name: '返回这页' }).click()
+  console.log('PASS: Share starts with tasks, expands only selected sections, downloads a PNG')
 
   await note('感想').getByLabel('记录操作').click()
   await note('感想').getByRole('button', { name: '编辑' }).click()
@@ -180,6 +214,16 @@ try {
   await note('感想').getByText('傍晚走了半小时，风很舒服。').waitFor()
   const photo = await loadedImage(note('感想'))
   const photoSrc = await photo.getAttribute('src')
+  if (process.env.STORE_SCREENSHOT_PATH) {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await button('分享这页').click()
+    await share.getByRole('checkbox', { name: '感想' }).check()
+    await sharePreview.waitFor()
+    await pngSize()
+    await page.screenshot({ path: process.env.STORE_SCREENSHOT_PATH, animations: 'disabled' })
+    await share.getByRole('button', { name: '返回这页' }).click()
+    await page.setViewportSize({ width: 375, height: 750 })
+  }
   if (process.env.SCREENSHOT_PATH) {
     await page.screenshot({ path: process.env.SCREENSHOT_PATH, fullPage: true, animations: 'disabled' })
   }
@@ -264,7 +308,7 @@ try {
   const writeFrom = (target, id) => target.evaluate(async ({ date, id }) => {
     const result = await chrome.runtime.sendMessage({
       type: 'update-notebook',
-      action: { type: 'add-entry', sectionId: 'scratch', entryId: id, date, text: id },
+      action: { type: 'add-entry', sectionId: 'scratch', entryId: crypto.randomUUID(), date, text: id },
     })
     if (result.error) throw new Error(result.error)
   }, { date: current, id })
@@ -291,8 +335,57 @@ try {
   await rollover.getByText('同时写入 A').waitFor()
   console.log('PASS: Midnight rollover keeps sections and starts a blank page')
 
+  await button('备份与导入').click()
+  const backupDialog = page.getByRole('dialog', { name: '备份与导入' })
+  const upload = async (backup, name = 'backup.json') => {
+    await backupDialog.locator('input[type=file]').setInputFiles({
+      name, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)),
+    })
+  }
+  const jsonDownload = page.waitForEvent('download')
+  await backupDialog.getByRole('button', { name: '导出备份' }).click()
+  const jsonFile = await jsonDownload
+  const exported = JSON.parse(await readFile(await jsonFile.path(), 'utf8'))
+  assert.equal(exported.format, 'today-paper')
+  assert.equal(Object.keys(exported.images).length, 2)
+  assert.ok(exported.notebook.sections.some(({ title }) => title === '选题灵感'))
+  const original = exported.notebook.pages[current].scratch[0]
+  const incoming = structuredClone(exported)
+  incoming.notebook.pages[current].scratch[0].text = '同一条记录的备份版本'
+  await upload(incoming)
+  await backupDialog.getByText('1 条 · 保留两版').waitFor()
+  await writeFrom(page, '预览后写入的内容')
+  await backupDialog.getByRole('button', { name: '确认合并' }).click()
+  await backupDialog.getByText('笔记刚有变动，请核对更新后的预览。').waitFor()
+  await backupDialog.getByRole('button', { name: '确认合并' }).click()
+  await backupDialog.getByText('已合并 1 条记录。').waitFor()
+  await upload(incoming)
+  await backupDialog.getByText('这份备份里的内容已经在本机。').waitFor()
+  await upload({ ...exported, images: {} })
+  await backupDialog.getByRole('alert').waitFor()
+  assert.equal(await backupDialog.getByRole('button', { name: '确认合并' }).count(), 0)
+  await backupDialog.getByRole('button', { name: '返回这页' }).click()
+  await note('随手记').getByText(original.text, { exact: true }).waitFor()
+  await note('随手记').getByText('同一条记录的备份版本').waitFor()
+  await note('随手记').getByText('预览后写入的内容').waitFor()
+
+  // Emulate moving to a fresh installation in this isolated test profile.
+  await page.evaluate(() => chrome.storage.local.clear())
+  await note('感想').getByText('傍晚走了半小时，风很舒服。').waitFor({ state: 'detached' })
+  await button('备份与导入').click()
+  const legacy = { [STORAGE_KEY]: exported.notebook }
+  for (const [id, src] of Object.entries(exported.images)) legacy['todayPaper:image:' + id] = src
+  await upload(legacy, '旧版控制台备份.json')
+  await backupDialog.getByRole('button', { name: '确认合并' }).click()
+  await backupDialog.getByText(/^已合并/).waitFor()
+  await backupDialog.getByRole('button', { name: '返回这页' }).click()
+  await loadedImage(note('感想'))
+  await task.and(page.locator('[aria-checked="true"]')).waitFor()
+  await note('选题灵感').getByText('给书桌做一张地图').waitFor()
+  console.log('PASS: Export images and sections, preserve conflicts, reject malformed backups, import legacy JSON')
+
   await page.setViewportSize({ width: 265, height: 670 })
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+  await page.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth, null, { timeout: 3000 })
   assert.equal(await page.locator('[data-missing]').count(), 0)
   assert.deepEqual(pageErrors, [])
   console.log('PASS: Narrow view fits and no runtime errors')

@@ -246,7 +246,7 @@ function Entry({ section, entry, date, current, copied, save }) {
   )
 }
 
-export function NoteSection({ section, entries, date, current, copiedIds, save }) {
+export function NoteSection({ section, entries, date, current, copiedIds, save, onShare }) {
   const [entryId, setEntryId] = useState(null)
   const checked = entries.filter((entry) => entry.done).length
   const checklist = section.kind === 'checklist'
@@ -261,10 +261,13 @@ export function NoteSection({ section, entries, date, current, copiedIds, save }
           </span>
         )}
         {section.id === 'tasks' && entries.length > 0 && checked === entries.length && (
-          <span className="done-stamp">
-            <Stamp text=" " ink="red" w={53} h={28} tilt={0} seed="finished" aria-hidden="true" />
-            <span>收工</span>
-          </span>
+          <div className="stamp-share">
+            <span className="done-stamp">
+              <Stamp text=" " ink="red" w={53} h={28} tilt={0} seed="finished" aria-hidden="true" />
+              <span>收工</span>
+            </span>
+            {onShare && <button type="button" className="text-action" onClick={onShare}>分享这页</button>}
+          </div>
         )}
       </header>
       {entries.length > 0 && (
