@@ -417,3 +417,55 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .pencil-doodle { width: 41px; height: 41px; }
   .entry { column-gap: 3px; }
 }
+
+.note-content { min-width: 0; }
+.entry-images, .composer-images {
+  display: grid;
+  gap: 7px;
+  margin: 5px 0;
+}
+.entry-images img, .attachment-preview img {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  border: 1px solid #d3c7af;
+  border-radius: 4px 3px 5px 3px;
+}
+.composer-images {
+  grid-template-columns: repeat(auto-fill, minmax(67px, 1fr));
+}
+.attachment-preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 60px;
+  background: #ece4d3;
+  border: 1px dashed #c5b79e;
+  border-radius: 4px;
+}
+.attachment-preview img {
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+}
+.attachment-preview button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--ink);
+  background: #fffdf5;
+  border: 1px solid #b2a68e;
+  border-radius: 50%;
+}
+.attachment-preview button:hover { background: #f3d9cd; }
+.paste-hint, .missing-image {
+  color: var(--muted-ink);
+  font-size: 11px;
+}
+.paste-hint { margin-inline-end: auto; }

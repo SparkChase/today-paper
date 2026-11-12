@@ -1,3 +1,4 @@
+import { imageKey, isPreparedImage } from './attachments.js'
 import { dateKey } from './dates.js'
 
 export const STORAGE_KEY = 'todayPaper'
@@ -30,6 +31,20 @@ function replaceEntries(notebook, date, sectionId, entries) {
   }
 }
 
+function entryContent(action, entry) {
+  const text = action.text.trim()
+  const attachments = action.attachments ?? (entry?.imageIds ?? []).map((id) => ({ id }))
+  const existing = new Set(entry?.imageIds)
+  for (const attachment of attachments) {
+    if (attachment.src ? !isPreparedImage(attachment) : !existing.has(attachment.id)) {
+      throw new Error('图片已变动，请重新打开这条记录再试。')
+    }
+  }
+  const imageIds = attachments.map(({ id }) => id)
+  if (!text && imageIds.length === 0) throw new Error('先写点内容，或粘贴一张图片。')
+  return { text, imageIds }
+}
+
 function applyChange(notebook, action) {
   if (action.type === 'add-section') {
     const title = action.title.trim()
@@ -54,10 +69,9 @@ function applyChange(notebook, action) {
 
   if (action.type === 'add-entry') {
     if (entries.some((entry) => entry.id === entryId)) return notebook
-    const text = action.text.trim()
-    if (!text) throw new Error('先写点内容。')
+    const content = entryContent(action)
     return replaceEntries(notebook, date, sectionId, [
-      ...entries, { id: entryId, text, done: false },
+      ...entries, { id: entryId, ...content, done: false },
     ])
   }
 
@@ -73,7 +87,7 @@ function applyChange(notebook, action) {
     const destination = pageEntries(notebook, today, sectionId)
     if (destination.some((item) => item.copiedFrom === entryId)) return notebook
     return replaceEntries(notebook, today, sectionId, [
-      ...destination, { id: action.copyId, text: entry.text, done: false, copiedFrom: entryId },
+      ...destination, { id: action.copyId, text: entry.text, imageIds: entry.imageIds ?? [], done: false, copiedFrom: entryId },
     ])
   }
 
@@ -81,14 +95,16 @@ function applyChange(notebook, action) {
     return replaceEntries(notebook, date, sectionId, entries.filter((item) => item.id !== entryId))
   }
 
-  const updatedEntry = { ...entry }
+  let updatedEntry
   if (action.type === 'set-checked') {
     if (section.kind !== 'checklist' || entry.done === action.done) return notebook
-    updatedEntry.done = action.done
+    updatedEntry = { ...entry, done: action.done }
   } else if (action.type === 'edit-entry') {
-    updatedEntry.text = action.text.trim()
-    if (!updatedEntry.text) throw new Error('先写点内容。')
-    if (updatedEntry.text === entry.text) return notebook
+    const content = entryContent(action, entry)
+    const originalIds = entry.imageIds ?? []
+    if (content.text === entry.text && content.imageIds.length === originalIds.length &&
+        content.imageIds.every((id, index) => id === originalIds[index])) return notebook
+    updatedEntry = { ...entry, ...content }
   } else {
     throw new Error('无法识别这项操作。')
   }
@@ -100,4 +116,31 @@ function applyChange(notebook, action) {
 export function updateNotebook(notebook, action) {
   const updated = applyChange(notebook, action)
   return updated === notebook ? notebook : { ...updated, revision: notebook.revision + 1 }
+}
+
+export function attachmentChanges(previous, updated, action) {
+  const additions = {}
+  if (action.type === 'add-entry' || action.type === 'edit-entry') {
+    for (const { id, src } of action.attachments ?? []) {
+      if (src) additions[imageKey(id)] = src
+    }
+  }
+
+  if (action.type !== 'edit-entry' && action.type !== 'delete-entry') {
+    return { additions, removedKeys: [] }
+  }
+  const { date, sectionId, entryId } = action
+  const before = pageEntries(previous, date, sectionId).find((entry) => entry.id === entryId)
+  if (!before?.imageIds?.length) return { additions, removedKeys: [] }
+
+  const stillUsed = new Set()
+  for (const page of Object.values(updated.pages)) {
+    for (const entries of Object.values(page)) {
+      for (const entry of entries) {
+        for (const id of entry.imageIds ?? []) stillUsed.add(id)
+      }
+    }
+  }
+  const removedKeys = before.imageIds.filter((id) => !stillUsed.has(id)).map(imageKey)
+  return { additions, removedKeys }
 }

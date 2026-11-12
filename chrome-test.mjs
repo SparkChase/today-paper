@@ -1,13 +1,19 @@
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 import { dateKey, offsetDay } from './src/dates.js'
+import { initialNotebook, STORAGE_KEY } from './src/notebook.js'
 import { spawn } from 'node:child_process'
 import { mkdtemp, readFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
-const executable = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const profile = await mkdtemp(resolve('../chrome-test-'))
+const executable = process.env.CHROME_PATH ?? (
+  process.platform === 'darwin'
+    ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    : 'google-chrome'
+)
+const profile = await mkdtemp(resolve(tmpdir(), 'today-paper-chrome-'))
 const chrome = spawn(executable, [
   `--user-data-dir=${profile}`, ...(process.env.HEADED ? [] : ['--headless=new']),
   '--no-first-run', '--no-default-browser-check',
@@ -90,11 +96,65 @@ try {
     await note(region).getByText(content, { exact: true }).waitFor()
   }
 
+  async function pasteImage(input) {
+    await input.evaluate(async (element) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 720
+      canvas.height = 300
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#f2e6cb'
+      ctx.fillRect(0, 0, 720, 300)
+      ctx.fillStyle = '#e9ac71'
+      ctx.beginPath()
+      ctx.arc(516, 103, 41, 0, 2 * Math.PI)
+      ctx.fill()
+      const hills = [
+        ['#b6bda0', 'M0 183 Q147 73 295 169 Q434 227 720 132 V300 H0 Z'],
+        ['#789680', 'M0 234 Q146 277 333 185 Q518 115 720 203 V300 H0 Z'],
+        ['#48685a', 'M0 277 Q180 194 390 242 Q550 274 720 219 V300 H0 Z'],
+        ['#e7d1a5', 'M333 300 Q373 263 458 246 Q488 240 527 239 Q429 253 388 300 Z'],
+      ]
+      for (const [color, path] of hills) {
+        ctx.fillStyle = color
+        ctx.fill(new Path2D(path))
+      }
+      const blob = await new Promise((done) => canvas.toBlob(done, 'image/png'))
+      const clipboard = new DataTransfer()
+      clipboard.items.add(new File([blob], 'walk.png', { type: 'image/png' }))
+      element.dispatchEvent(new ClipboardEvent('paste', { clipboardData: clipboard, bubbles: true, cancelable: true }))
+    })
+  }
+
+  async function loadedImage(container) {
+    const image = container.getByRole('img', { name: '记录图片' })
+    await image.waitFor()
+    assert.equal(await image.evaluate(async (img) => {
+      await img.decode()
+      return img.naturalWidth
+    }), 720)
+    return image
+  }
+
   const current = dateKey()
   const previous = offsetDay(current, -1)
+  const legacyDate = offsetDay(current, -2)
+  await page.evaluate(async ({ storageKey, legacy }) => {
+    await chrome.storage.local.set({ [storageKey]: legacy })
+  }, {
+    storageKey: STORAGE_KEY,
+    legacy: {
+      ...initialNotebook,
+      revision: 1,
+      pages: {
+        [legacyDate]: { scratch: [{ id: 'v010-text', text: '旧版留下的文字', done: false }] },
+      },
+    },
+  })
+  await page.getByLabel('跳转到日期').fill(legacyDate)
+  await page.getByText('旧版留下的文字').waitFor()
+  await button('回到今天').click()
   assert.equal(await page.locator('time').getAttribute('datetime'), current)
   assert.equal(await page.getByRole('region').count(), 4)
-  await page.screenshot({ path: '../empty-preview.png' })
 
   await addEntry('随手记', '记下刚想到的事', '记一个给朋友的小礼物')
   await addEntry('感想', '写一段今天的感想', '想把散步放回每天的日程。')
@@ -110,8 +170,25 @@ try {
   await note('感想').getByLabel('记录操作').click()
   await note('感想').getByRole('button', { name: '编辑' }).click()
   await textbox('编辑感想').fill('傍晚走了半小时，风很舒服。')
+  await pasteImage(textbox('编辑感想'))
+  await page.getByRole('img', { name: '待保存的图片' }).waitFor()
+  await button('移除第 1 张图片').click()
+  assert.equal(await page.getByRole('img', { name: '待保存的图片' }).count(), 0)
+  await pasteImage(textbox('编辑感想'))
+  await page.getByRole('img', { name: '待保存的图片' }).waitFor()
   await button('保存').click()
   await note('感想').getByText('傍晚走了半小时，风很舒服。').waitFor()
+  const photo = await loadedImage(note('感想'))
+  const photoSrc = await photo.getAttribute('src')
+  if (process.env.SCREENSHOT_PATH) {
+    await page.screenshot({ path: process.env.SCREENSHOT_PATH, fullPage: true, animations: 'disabled' })
+  }
+
+  await note('随手记').getByRole('button', { name: '记下刚想到的事' }).click()
+  await pasteImage(textbox('写入随手记'))
+  await page.getByRole('img', { name: '待保存的图片' }).waitFor()
+  await note('随手记').getByRole('button', { name: '记下', exact: true }).click()
+  await loadedImage(note('随手记'))
 
   await button('加一个区域').click()
   await textbox('区域名称').fill('选题灵感')
@@ -130,38 +207,55 @@ try {
   await page.reload()
   await task.and(page.locator('[aria-checked="true"]')).waitFor()
   await note('选题灵感').getByText('给书桌做一张地图').waitFor()
-  console.log('PASS: Write text, link, task, edit, check, add a section, reload')
+  await loadedImage(note('感想'))
+  await loadedImage(note('随手记'))
+  console.log('PASS: Write text, link, task, paste and remove draft images, save image-only and captioned notes, reload')
 
-  await page.screenshot({ path: '../filled-preview.png', fullPage: true })
 
   // Use the extension service worker to seed yesterday via the same save path.
-  await page.evaluate(async (date) => {
+  await page.evaluate(async ({ date, photoSrc }) => {
     const result = await chrome.runtime.sendMessage({
       type: 'update-notebook',
-      action: { type: 'add-entry', sectionId: 'tasks', entryId: 'yesterday-task', date, text: '补写一张明信片' },
+      action: {
+        type: 'add-entry', sectionId: 'tasks', entryId: 'yesterday-task', date, text: '补写一张明信片',
+        attachments: [{ id: 'yesterday-photo', src: photoSrc }],
+      },
     })
     if (result.error) throw new Error(result.error)
-  }, previous)
+  }, { date: previous, photoSrc })
 
   await button('前一天').click()
   assert.equal(await page.locator('time').getAttribute('datetime'), previous)
   await note('待办').getByText('补写一张明信片').waitFor()
+  await loadedImage(note('待办'))
   assert.equal(await button('加一个区域').count(), 0)
   await button('抄到今天').click()
   await button('已抄到今天').waitFor()
   assert.equal(await button('已抄到今天').isDisabled(), true)
   await button('回到今天').click()
   await page.getByRole('checkbox', { name: '补写一张明信片' }).waitFor()
+  await loadedImage(note('待办'))
+  const copiedEntry = note('待办').getByRole('listitem').filter({ hasText: '补写一张明信片' })
+  await copiedEntry.getByLabel('记录操作').click()
+  await copiedEntry.getByRole('button', { name: '编辑' }).click()
+  await button('移除第 1 张图片').click()
+  await button('保存').click()
+  await copiedEntry.getByRole('img', { name: '记录图片' }).waitFor({ state: 'detached' })
   await page.getByLabel('跳转到日期').fill(previous)
   await note('待办').getByText('补写一张明信片').waitFor()
+  await loadedImage(note('待办'))
   await button('后一天').click()
   await task.waitFor()
-  console.log('PASS: Previous day, date jump, copy to today once, preserve original')
+  console.log('PASS: Previous day, date jump, copy a note with its image, keep the original after editing the copy')
 
-  await note('随手记').getByLabel('记录操作').click()
+  await note('随手记').getByRole('listitem').filter({ has: page.getByRole('img', { name: '记录图片' }) }).getByLabel('记录操作').click()
   await note('随手记').getByRole('button', { name: '删除', exact: true }).click()
   await button('确认删除').click({ timeout: 3000 })
-  await note('随手记').getByText('记一个给朋友的小礼物').waitFor({ state: 'detached' })
+  await note('随手记').getByRole('img', { name: '记录图片' }).waitFor({ state: 'detached' })
+  const remainingImageKeys = await page.evaluate(async () => (
+    Object.entries(await chrome.storage.local.get(null)).filter(([key, value]) => key.startsWith('todayPaper:image:') && value)
+  ))
+  assert.equal(remainingImageKeys.length, 2)
   console.log('PASS: Confirmed deletion')
 
   const other = await context.newPage()

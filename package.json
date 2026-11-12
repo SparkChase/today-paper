@@ -1,9 +1,13 @@
 {
   "name": "today-paper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "scripts": { "build": "vite build", "dev": "vite" },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "test:chrome": "node chrome-test.mjs"
+  },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "class-variance-authority": "^0.7.1",

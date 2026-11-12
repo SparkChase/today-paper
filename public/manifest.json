@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "今天这张纸",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "在 Chrome 侧栏随手写下今天的想法、待看链接和待办。",
   "minimum_chrome_version": "116",
-  "permissions": ["sidePanel", "storage"],
+  "permissions": ["sidePanel", "storage", "unlimitedStorage"],
   "background": { "service_worker": "background.js", "type": "module" },
   "side_panel": { "default_path": "index.html" },
   "action": {

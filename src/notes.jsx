@@ -1,8 +1,9 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Stamp } from '@/components/ui/stamp'
+import { clipboardImages, imageKey, prepareImage } from './attachments.js'
 
 const prompts = {
   scratch: '记下刚想到的事',
@@ -26,16 +27,58 @@ function NoteText({ text }) {
   })
 }
 
-function Composer({ section, initialText = '', editing = false, onSave, onCancel }) {
+function AttachmentImage({ id, preview }) {
+  const [stored, setStored] = useState(undefined)
+
+  useEffect(() => {
+    if (preview) return
+    let active = true
+    const key = imageKey(id)
+    chrome.storage.local.get(key).then(
+      (result) => { if (active) setStored(result[key] ?? null) },
+      () => { if (active) setStored(null) },
+    )
+    return () => { active = false }
+  }, [id, preview])
+
+  const source = preview ?? stored
+  if (source === undefined) return null
+  if (source === null) return <span className="missing-image">图片暂时无法读取</span>
+  return <img src={source} alt={preview ? '待保存的图片' : '记录图片'} />
+}
+
+function Composer({ section, initialText = '', initialImages = [], editing = false, onSave, onCancel }) {
   const [text, setText] = useState(initialText)
+  const [attachments, setAttachments] = useState(() => initialImages.map((id) => ({ id })))
   const [busy, setBusy] = useState(false)
+  const [preparing, setPreparing] = useState(false)
+  const [imageError, setImageError] = useState('')
+  const canSave = Boolean(text.trim() || attachments.length) && !preparing && !busy
+
+  async function paste(event) {
+    const files = clipboardImages(event.clipboardData)
+    if (!files.length) return
+    event.preventDefault()
+    if (busy || preparing) return
+    setPreparing(true)
+    setImageError('')
+    try {
+      const images = []
+      for (const file of files) images.push(await prepareImage(file))
+      setAttachments((previous) => [...previous, ...images])
+    } catch {
+      setImageError('这次粘贴的图片无法读取，请复制一张 PNG、JPEG 或 WebP 图片再试。')
+    } finally {
+      setPreparing(false)
+    }
+  }
 
   async function submit(event) {
     event.preventDefault()
-    if (!text.trim() || busy) return
+    if (!canSave) return
     setBusy(true)
     try {
-      await onSave(text)
+      await onSave({ text, attachments })
     } finally {
       setBusy(false)
     }
@@ -48,7 +91,9 @@ function Composer({ section, initialText = '', editing = false, onSave, onCancel
         aria-label={`${editing ? '编辑' : '写入'}${section.title}`}
         placeholder={prompts[section.id] ?? '写在这里'}
         value={text}
+        readOnly={busy}
         rows={section.kind === 'checklist' ? 1 : 2}
+        onPaste={paste}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return
@@ -61,9 +106,28 @@ function Composer({ section, initialText = '', editing = false, onSave, onCancel
           }
         }}
       />
+      {attachments.length > 0 && (
+        <div className="composer-images">
+          {attachments.map(({ id, src }, index) => (
+            <div className="attachment-preview" key={id}>
+              <AttachmentImage id={id} preview={src} />
+              <button
+                type="button"
+                disabled={busy}
+                aria-label={`移除第 ${index + 1} 张图片`}
+                onClick={() => setAttachments((items) => items.filter((image) => image.id !== id))}
+              >
+                <Icon name="x" size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {imageError && <p className="form-error" role="alert">{imageError}</p>}
       <div className="composer-actions">
+        <span className="paste-hint" role="status">{preparing ? '正在处理图片…' : '可粘贴图片'}</span>
         <button type="button" className="text-action" disabled={busy} onClick={onCancel}>取消</button>
-        <Button variant="secondary" size="sm" type="submit" disabled={busy || !text.trim()}>
+        <Button variant="secondary" size="sm" type="submit" disabled={!canSave}>
           {editing ? '保存' : '记下'}
         </Button>
       </div>
@@ -128,9 +192,10 @@ function Entry({ section, entry, date, current, copied, save }) {
         <Composer
           section={section}
           initialText={entry.text}
+          initialImages={entry.imageIds}
           editing
-          onSave={async (text) => {
-            if (await change('edit-entry', { text })) setEditing(false)
+          onSave={async (content) => {
+            if (await change('edit-entry', content)) setEditing(false)
           }}
           onCancel={() => setEditing(false)}
         />
@@ -145,14 +210,21 @@ function Entry({ section, entry, date, current, copied, save }) {
         <div className="check-area">
           <Checkbox
             seed={entry.id}
-            aria-label={entry.text}
+            aria-label={entry.text || '图片记录'}
             checked={entry.done}
             disabled={!current || busy}
             onCheckedChange={(done) => change('set-checked', { done })}
           />
         </div>
       ) : <span className="ink-dot" aria-hidden="true" />}
-      <p className="entry-text"><NoteText text={entry.text} /></p>
+      <div className="note-content">
+        {entry.text && <p className="entry-text"><NoteText text={entry.text} /></p>}
+        {entry.imageIds?.length > 0 && (
+          <div className="entry-images">
+            {entry.imageIds.map((id) => <AttachmentImage key={id} id={id} />)}
+          </div>
+        )}
+      </div>
       {current ? (
         <EntryActions
           onEdit={() => setEditing(true)}
@@ -213,8 +285,8 @@ export function NoteSection({ section, entries, date, current, copiedIds, save }
       {current && (entryId ? (
         <Composer
           section={section}
-          onSave={async (text) => {
-            if (await save({ type: 'add-entry', sectionId: section.id, date, entryId, text })) {
+          onSave={async (content) => {
+            if (await save({ type: 'add-entry', sectionId: section.id, date, entryId, ...content })) {
               setEntryId(null)
             }
           }}
