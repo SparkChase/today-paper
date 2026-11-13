@@ -93,6 +93,7 @@ try {
     await textbox('写入' + region).fill(content)
     if (keyboard) await textbox('写入' + region).press(keyboard)
     else await note(region).getByRole('button', { name: '记下', exact: true }).click()
+    await textbox('写入' + region).waitFor({ state: 'hidden' })
     await note(region).getByText(content, { exact: true }).waitFor()
   }
 
