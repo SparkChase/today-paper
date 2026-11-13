@@ -1,3 +1,4 @@
+import { extension } from './extension-api.js'
 import { Fragment, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -34,7 +35,7 @@ function AttachmentImage({ id, preview }) {
     if (preview) return
     let active = true
     const key = imageKey(id)
-    chrome.storage.local.get(key).then(
+    extension.storage.local.get(key).then(
       (result) => { if (active) setStored(result[key] ?? null) },
       () => { if (active) setStored(null) },
     )

@@ -324,6 +324,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .text-action:hover { text-decoration: underline; }
 
 .sheet-footer { padding: 9px 0 2px; border-top: 1px solid var(--faint-line); }
+.paper-signature {
+  margin: 12px 0 0;
+  color: var(--muted-ink);
+  font: 12px/1.4 var(--body-font);
+  letter-spacing: .025em;
+  text-align: end;
+}
 .add-section {
   display: inline-flex;
   align-items: center;

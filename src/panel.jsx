@@ -233,6 +233,7 @@ function App() {
               {loadError ? '暂时无法打开这张纸。请重新打开侧栏。' : '正在打开这张纸…'}
             </p>
           )}
+          <p className="paper-signature">made by richard.</p>
         </Paper>
       </div>
       {addingSection && <NewSection onClose={() => setAddingSection(false)} save={save} />}

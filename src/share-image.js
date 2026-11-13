@@ -1,3 +1,4 @@
+import { extension } from './extension-api.js'
 import { imageKey } from './attachments.js'
 import { parseDay } from './dates.js'
 
@@ -44,7 +45,7 @@ function drawStamp(ctx, y) {
 
 async function loadImages(sections) {
   const ids = new Set(sections.flatMap(({ entries }) => entries.flatMap(({ imageIds }) => imageIds ?? [])))
-  const stored = await chrome.storage.local.get([...ids].map(imageKey))
+  const stored = await extension.storage.local.get([...ids].map(imageKey))
   return new Map(await Promise.all([...ids].map(async (id) => {
     const source = stored[imageKey(id)]
     if (!source) throw new Error('这页有图片无法读取。可以取消选择对应的区域。')

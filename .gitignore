@@ -2,3 +2,4 @@
 /dist/
 /probe.mjs
 .DS_Store
+/dist-firefox/

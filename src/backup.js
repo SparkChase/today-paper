@@ -1,3 +1,4 @@
+import { extension } from './extension-api.js'
 import { imageKey, isPreparedImage } from './attachments.js'
 import { dateKey, parseDay } from './dates.js'
 import { initialNotebook, pageEntries, STORAGE_KEY } from './notebook.js'
@@ -190,7 +191,7 @@ export async function planImport(storage, backup) {
 }
 
 export async function previewImport(backup) {
-  return planImport(await chrome.storage.local.get(null), backup)
+  return planImport(await extension.storage.local.get(null), backup)
 }
 
 export async function commitImport(backup, revision) {
@@ -199,7 +200,7 @@ export async function commitImport(backup, revision) {
     if (plan.revision !== revision) return { plan }
     if (plan.summary.entries || plan.summary.sections) {
       plan.next.revision = revision + 1
-      await chrome.storage.local.set({ [STORAGE_KEY]: plan.next, ...plan.additions })
+      await extension.storage.local.set({ [STORAGE_KEY]: plan.next, ...plan.additions })
     }
     return { summary: plan.summary }
   })

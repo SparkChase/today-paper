@@ -1,3 +1,4 @@
+import { extension } from './extension-api.js'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
@@ -54,7 +55,7 @@ export function BackupDialog({ notebook, onClose }) {
 
   function exportBackup() {
     run(async () => {
-      const snapshot = makeBackup(await chrome.storage.local.get(null))
+      const snapshot = makeBackup(await extension.storage.local.get(null))
       downloadFile(new Blob([JSON.stringify(snapshot)], { type: 'application/json' }), `今天这张纸-备份-${dateKey()}.json`)
       setStatus('已生成备份文件。')
     })

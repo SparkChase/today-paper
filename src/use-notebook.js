@@ -1,3 +1,4 @@
+import { extension } from './extension-api.js'
 import { useEffect, useState } from 'react'
 import { dateKey, offsetDay, parseDay } from './dates.js'
 import { initialNotebook, STORAGE_KEY, UPDATE_NOTEBOOK } from './notebook.js'
@@ -21,16 +22,16 @@ export function useNotebook() {
       }
     }
 
-    chrome.storage.onChanged.addListener(onChange)
-    chrome.storage.local.get(STORAGE_KEY).then(
+    extension.storage.onChanged.addListener(onChange)
+    extension.storage.local.get(STORAGE_KEY).then(
       (saved) => receive(saved[STORAGE_KEY] ?? initialNotebook),
       () => setLoadError(true),
     )
-    return () => chrome.storage.onChanged.removeListener(onChange)
+    return () => extension.storage.onChanged.removeListener(onChange)
   }, [])
 
   async function save(action) {
-    const result = await chrome.runtime.sendMessage({ type: UPDATE_NOTEBOOK, action })
+    const result = await extension.runtime.sendMessage({ type: UPDATE_NOTEBOOK, action })
     if (!result?.notebook) throw new Error(result?.error || '暂时无法保存。')
     receive(result.notebook)
   }
