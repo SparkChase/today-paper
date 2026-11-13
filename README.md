@@ -55,4 +55,6 @@ npm run test:chrome
 
 扩展使用浏览器本地存储。图片会转成 WebP，长边超过 2200 像素时等比缩小。移除扩展会清除它在当前浏览器用户资料中的数据。详见[隐私说明](docs/privacy.md)。
 
+《今天这张纸》的自有代码采用 [MIT 许可](LICENSE)。
+
 纸张、插画、手绘组件和 Kevin Sans 来自 [Looseleaf](https://github.com/kevintngo/looseleaf)，采用 [MIT 许可](public/LICENSE.Looseleaf.txt)。IBM Plex Mono 采用 [SIL OFL 1.1](public/LICENSE.IBM-Plex-Mono.txt)。其他依赖的许可见 [第三方声明](public/THIRD-PARTY-NOTICES.txt)。

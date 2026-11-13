@@ -19,6 +19,7 @@ npm run build:firefox
 - 摘要：一张住在 Firefox 侧栏里的手绘便签。写随手记、存待看链接、贴图片、勾掉待办，或者把今天做成一张分享图。
 - 说明：每一天都是新的一页。可以创建自己的分区，回看旧纸页，也能把未完成的事项抄到今天。备份包含文字、图片与勾选状态，支持从 Chrome 版导出的文件。数据保存在当前浏览器中，支持离线使用。
 - 平台：仅桌面 Firefox。
+- 许可：[MIT](../LICENSE)。随附的第三方代码、字体和素材保留各自的许可声明。
 - 主页：[GitHub](https://github.com/SparkChase/today-paper)
 - 隐私说明：[privacy.md](privacy.md)
 
