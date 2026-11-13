@@ -5,6 +5,7 @@ import { Icon } from '@/components/ui/icon'
 import { commitImport, makeBackup, previewImport, readBackup } from './backup.js'
 import { dateKey, offsetDay, parseDay } from './dates.js'
 import { downloadFile } from './download.js'
+import { makeMarkdownExport } from './markdown-export.js'
 import { pageEntries, writtenDates } from './notebook.js'
 import { makeShareImage } from './share-image.js'
 
@@ -30,6 +31,26 @@ function ToolDialog({ title, onClose, busy, children }) {
       {children}
     </dialog>
   )
+}
+
+function useMarkdownDownload() {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function saveMarkdown(dates, sectionIds) {
+    setBusy(true)
+    setError('')
+    try {
+      const { blob, filename } = await makeMarkdownExport(dates, sectionIds)
+      downloadFile(blob, filename)
+    } catch (issue) {
+      setError(issue.message || '暂时无法导出 Markdown。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return { busy, error, saveMarkdown }
 }
 
 const historyDay = new Intl.DateTimeFormat('zh-CN', {
@@ -64,6 +85,7 @@ function findHistory(notebook, dates, query) {
 }
 
 export function HistoryDialog({ notebook, today, onOpenDate, onClose }) {
+  const markdown = useMarkdownDownload()
   const [query, setQuery] = useState('')
   const [days, setDays] = useState(0)
   const [limit, setLimit] = useState(historyBatch)
@@ -77,11 +99,11 @@ export function HistoryDialog({ notebook, today, onOpenDate, onClose }) {
   let remaining = limit
 
   return (
-    <ToolDialog title="翻旧纸" onClose={onClose}>
+    <ToolDialog title="翻旧纸" onClose={onClose} busy={markdown.busy}>
       <div className="history-filters">
-        <input type="search" aria-label="搜索旧纸" placeholder="搜索笔记、分区或日期"
+        <input type="search" aria-label="搜索旧纸" placeholder="搜索笔记、分区或日期" disabled={markdown.busy}
           value={query} onChange={(event) => { setQuery(event.target.value); setLimit(historyBatch) }} />
-        <select aria-label="日期范围" value={days}
+        <select aria-label="日期范围" value={days} disabled={markdown.busy}
           onChange={(event) => { setDays(Number(event.target.value)); setLimit(historyBatch) }}>
           <option value={0}>全部日期</option>
           <option value={7}>最近 7 天</option>
@@ -91,6 +113,15 @@ export function HistoryDialog({ notebook, today, onOpenDate, onClose }) {
       <p className="history-count" role="status">
         {total ? `${total} 页` : dates.length ? '没找到符合条件的纸页。' : '还没有写过的纸页。'}
       </p>
+      {total > 0 && (
+        <div className="paper-tool-actions history-export">
+          <Button type="button" size="sm" variant="outline" disabled={markdown.busy}
+            onClick={() => markdown.saveMarkdown(months.flatMap(({ pages }) => pages.map(({ date }) => date)).reverse())}>
+            <Icon name="download" />{markdown.busy ? '正在导出…' : `导出 ${total} 页 Markdown`}
+          </Button>
+        </div>
+      )}
+      {markdown.error && <p className="form-error" role="alert">{markdown.error}</p>}
       {months.map(({ month, pages }) => {
         const visible = pages.slice(0, Math.max(0, remaining))
         remaining -= visible.length
@@ -102,7 +133,7 @@ export function HistoryDialog({ notebook, today, onOpenDate, onClose }) {
             <ul>
               {visible.map(({ date, count, match }) => (
                 <li key={date}>
-                  <button type="button" className="history-page" onClick={() => onOpenDate(date)}>
+                  <button type="button" className="history-page" disabled={markdown.busy} onClick={() => onOpenDate(date)}>
                     <span className="history-page-label">
                       <time dateTime={date}>{historyDay.format(parseDay(date))}</time>
                       <span>{count} 条</span>
@@ -220,6 +251,7 @@ export function BackupDialog({ notebook, onClose }) {
 }
 
 export function ShareDialog({ notebook, date, onClose }) {
+  const markdown = useMarkdownDownload()
   const [selected, setSelected] = useState(() => new Set(
     pageEntries(notebook, date, 'tasks').length ? ['tasks'] : [],
   ))
@@ -275,11 +307,12 @@ export function ShareDialog({ notebook, date, onClose }) {
   }
 
   return (
-    <ToolDialog title="分享这页" onClose={onClose}>
-      <div className="share-options" role="group" aria-label="选入分享图的分区">
+    <ToolDialog title="分享这页" onClose={onClose} busy={markdown.busy}>
+      <div className="share-options" role="group" aria-label="要分享的分区">
         {options.map(({ id, title }) => (
           <label key={id}>
-            <input type="checkbox" checked={selected.has(id)} onChange={(event) => toggle(id, event.target.checked)} />
+            <input type="checkbox" checked={selected.has(id)} disabled={markdown.busy}
+              onChange={(event) => toggle(id, event.target.checked)} />
             {title}
           </label>
         ))}
@@ -289,7 +322,12 @@ export function ShareDialog({ notebook, date, onClose }) {
         <p className="tool-status" role="status">{hasSelection ? '正在生成图片…' : '选一个分区，就能预览分享图。'}</p>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
+      {markdown.error && <p className="form-error" role="alert">{markdown.error}</p>}
       <div className="paper-tool-actions share-tools">
+        <Button type="button" size="sm" variant="outline" disabled={!hasSelection || markdown.busy}
+          onClick={() => markdown.saveMarkdown([date], selected)}>
+          <Icon name="download" />{markdown.busy ? '正在导出…' : '导出 Markdown'}
+        </Button>
         <Button type="button" size="sm" variant="outline" disabled={!ready}
           onClick={() => downloadFile(image.blob, `今天这张纸-${date}.png`)}>
           <Icon name="download" />下载 PNG

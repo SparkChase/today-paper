@@ -544,6 +544,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   color: var(--muted-ink);
   font-size: 12px;
 }
+.history-export { margin-top: 6px; }
 .history-month { margin-top: 13px; }
 .history-month h3 {
   margin: 0 0 4px;

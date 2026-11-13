@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { unzipSync } from 'fflate'
 import { dateKey, offsetDay } from './src/dates.js'
 import { initialNotebook, STORAGE_KEY } from './src/notebook.js'
 import { spawn } from 'node:child_process'
@@ -199,6 +200,16 @@ try {
   await share.getByRole('button', { name: '复制图片' }).click()
   await share.getByText('已复制图片。').waitFor()
   assert.deepEqual(Buffer.from(await page.evaluate(() => window.testClipboardPng)), png)
+  await share.getByRole('checkbox', { name: '待看' }).check()
+  const mdDownload = page.waitForEvent('download')
+  await share.getByRole('button', { name: '导出 Markdown' }).click()
+  const mdFile = await mdDownload
+  assert.equal(mdFile.suggestedFilename(), `${current}.md`)
+  const markdown = await readFile(await mdFile.path(), 'utf8')
+  assert.match(markdown, /^# \d{4}-\d{2}-\d{2}\n/)
+  assert.ok(markdown.includes('## 待办\n\n- [x] 给植物浇水'))
+  assert.ok(markdown.includes('- [ ] <https://example.com/reading>'))
+  assert.ok(!markdown.includes('## 感想'))
   await share.getByRole('button', { name: '返回这页' }).click()
   console.log('PASS: Share starts with tasks, expands only selected sections, downloads a PNG')
 
@@ -408,6 +419,24 @@ try {
     [...restoredDates, older].sort().reverse())
   await history.getByLabel('日期范围').selectOption('30')
   await dateInHistory(older).waitFor({ state: 'detached' })
+  const zipDownload = page.waitForEvent('download')
+  await history.getByRole('button', { name: `导出 ${restoredDates.length} 页 Markdown` }).click()
+  const zipFile = await zipDownload
+  assert.ok(zipFile.suggestedFilename().endsWith('.zip'))
+  const archived = unzipSync(await readFile(await zipFile.path()))
+  const filenames = Object.keys(archived)
+  assert.deepEqual(filenames.filter((name) => name.endsWith('.md')).sort(), restoredDates.sort().map((date) => `${date}.md`))
+  const links = new Set()
+  for (const name of filenames.filter((name) => name.endsWith('.md'))) {
+    const text = Buffer.from(archived[name]).toString()
+    for (const [, path] of text.matchAll(/!\[记录图片\]\((attachments\/[^)]+)\)/g)) {
+      assert.equal(Buffer.from(archived[path]).subarray(8, 12).toString(), 'WEBP')
+      links.add(path)
+    }
+  }
+  assert.equal(links.size, 2)
+  assert.equal(filenames.filter((name) => name.startsWith('attachments/')).length, 2)
+  console.log('PASS: Export selected sections as Markdown and filtered history with linked WebP attachments')
   await history.getByLabel('日期范围').selectOption('0')
   await history.getByRole('searchbox').fill('不存在的标题')
   await history.getByRole('status').filter({ hasText: '没找到符合条件的纸页' }).waitFor()

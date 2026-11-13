@@ -1,10 +1,11 @@
 import { extension } from './extension-api.js'
-import { Fragment, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Stamp } from '@/components/ui/stamp'
 import { clipboardImages, imageKey, prepareImage } from './attachments.js'
+import { noteParts } from './note-links.js'
 
 const prompts = {
   scratch: '记下刚想到的事',
@@ -13,19 +14,10 @@ const prompts = {
   tasks: '加一件要做的事',
 }
 
-const urlPattern = /(https?:\/\/[^\s<>"，。！？；、（）【】]+)/gi
-
 function NoteText({ text }) {
-  return text.split(urlPattern).map((part, index) => {
-    if (index % 2 === 0) return <Fragment key={index}>{part}</Fragment>
-    const url = part.replace(/[.,;!?]+$/, '')
-    return (
-      <Fragment key={index}>
-        <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
-        {part.slice(url.length)}
-      </Fragment>
-    )
-  })
+  return noteParts(text).map(({ text, url }, index) => url
+    ? <a key={index} href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+    : text)
 }
 
 function AttachmentImage({ id, preview }) {
