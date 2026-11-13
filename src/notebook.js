@@ -21,6 +21,14 @@ export function pageEntries(notebook, date, sectionId) {
   return notebook.pages[date]?.[sectionId] ?? []
 }
 
+export function hasPageEntries(page) {
+  return Object.values(page ?? {}).some((entries) => entries.length > 0)
+}
+
+export function writtenDates(notebook) {
+  return Object.keys(notebook.pages).filter((date) => hasPageEntries(notebook.pages[date])).sort()
+}
+
 function replaceEntries(notebook, date, sectionId, entries) {
   return {
     ...notebook,

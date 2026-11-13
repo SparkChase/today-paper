@@ -386,6 +386,40 @@ try {
   console.log('PASS: Export images and sections, preserve conflicts, reject malformed backups, import legacy JSON')
 
   await page.setViewportSize({ width: 265, height: 670 })
+  const older = offsetDay(current, -40)
+  await page.evaluate(async ({ date, src }) => {
+    const result = await chrome.runtime.sendMessage({
+      type: 'update-notebook',
+      action: {
+        type: 'add-entry', sectionId: 'thoughts', entryId: 'old-photo', date, text: '',
+        attachments: [{ id: 'old-photo', src }],
+      },
+    })
+    if (result.error) throw new Error(result.error)
+  }, { date: older, src: photoSrc })
+  await button('翻旧纸').click()
+  const history = page.getByRole('dialog', { name: '翻旧纸' })
+  const dateInHistory = (date) => history.locator(`time[datetime="${date}"]`)
+  await dateInHistory(older).waitFor()
+  const restoredDates = Object.keys(exported.notebook.pages).filter((date) => (
+    Object.values(exported.notebook.pages[date]).some((entries) => entries.length > 0)
+  ))
+  assert.deepEqual(await history.locator('time').evaluateAll((dates) => dates.map((item) => item.dateTime)),
+    [...restoredDates, older].sort().reverse())
+  await history.getByLabel('日期范围').selectOption('30')
+  await dateInHistory(older).waitFor({ state: 'detached' })
+  await history.getByLabel('日期范围').selectOption('0')
+  await history.getByRole('searchbox').fill('不存在的标题')
+  await history.getByRole('status').filter({ hasText: '没找到符合条件的纸页' }).waitFor()
+  await history.getByRole('searchbox').fill('明信片')
+  await dateInHistory(previous).waitFor()
+  assert.equal(await dateInHistory(older).count(), 0)
+  await history.getByRole('searchbox').fill('感想')
+  await dateInHistory(older).click()
+  await loadedImage(note('感想'))
+  assert.equal(await page.locator('.date-button time').getAttribute('datetime'), older)
+  console.log('PASS: Search imported history, filter dates, and open an image-only page in a narrow sidebar')
+
   await page.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth, null, { timeout: 3000 })
   assert.equal(await page.locator('[data-missing]').count(), 0)
   assert.deepEqual(pageErrors, [])

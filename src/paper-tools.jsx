@@ -1,11 +1,11 @@
 import { extension } from './extension-api.js'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import { backupDates, commitImport, makeBackup, previewImport, readBackup } from './backup.js'
-import { dateKey } from './dates.js'
+import { commitImport, makeBackup, previewImport, readBackup } from './backup.js'
+import { dateKey, offsetDay, parseDay } from './dates.js'
 import { downloadFile } from './download.js'
-import { pageEntries } from './notebook.js'
+import { pageEntries, writtenDates } from './notebook.js'
 import { makeShareImage } from './share-image.js'
 
 function ToolDialog({ title, onClose, busy, children }) {
@@ -32,13 +32,102 @@ function ToolDialog({ title, onClose, busy, children }) {
   )
 }
 
+const historyDay = new Intl.DateTimeFormat('zh-CN', {
+  month: 'long', day: 'numeric', weekday: 'short',
+})
+const historyMonth = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long' })
+const historyBatch = 40
+const searchable = (text) => text.normalize('NFKC').toLowerCase()
+
+function findHistory(notebook, dates, query) {
+  const months = []
+  for (const date of dates) {
+    let match = ''
+    let count = 0
+    const matchesDate = date.includes(query)
+    for (const section of notebook.sections) {
+      const entries = pageEntries(notebook, date, section.id)
+      count += entries.length
+      if (match || entries.length === 0) continue
+      const matchesTitle = searchable(section.title).includes(query)
+      const entry = matchesDate || matchesTitle
+        ? entries[0]
+        : entries.find(({ text }) => searchable(text).includes(query))
+      if (entry) match = entry.text || `${section.title} · 图片`
+    }
+    if (!match) continue
+    const month = date.slice(0, 7)
+    if (months.at(-1)?.month !== month) months.push({ month, pages: [] })
+    months.at(-1).pages.push({ date, count, match })
+  }
+  return months
+}
+
+export function HistoryDialog({ notebook, today, onOpenDate, onClose }) {
+  const [query, setQuery] = useState('')
+  const [days, setDays] = useState(0)
+  const [limit, setLimit] = useState(historyBatch)
+  const dates = useMemo(() => writtenDates(notebook).reverse().filter((date) => date <= today), [notebook, today])
+  const since = days ? offsetDay(today, 1 - days) : ''
+  const months = useMemo(
+    () => findHistory(notebook, dates.filter((date) => date >= since), searchable(query.trim())),
+    [notebook, dates, since, query],
+  )
+  const total = months.reduce((sum, { pages }) => sum + pages.length, 0)
+  let remaining = limit
+
+  return (
+    <ToolDialog title="翻旧纸" onClose={onClose}>
+      <div className="history-filters">
+        <input type="search" aria-label="搜索旧纸" placeholder="搜索笔记、分区或日期"
+          value={query} onChange={(event) => { setQuery(event.target.value); setLimit(historyBatch) }} />
+        <select aria-label="日期范围" value={days}
+          onChange={(event) => { setDays(Number(event.target.value)); setLimit(historyBatch) }}>
+          <option value={0}>全部日期</option>
+          <option value={7}>最近 7 天</option>
+          <option value={30}>最近 30 天</option>
+        </select>
+      </div>
+      <p className="history-count" role="status">
+        {total ? `${total} 页` : dates.length ? '没找到符合条件的纸页。' : '还没有写过的纸页。'}
+      </p>
+      {months.map(({ month, pages }) => {
+        const visible = pages.slice(0, Math.max(0, remaining))
+        remaining -= visible.length
+        if (!visible.length) return null
+        const label = historyMonth.format(parseDay(pages[0].date))
+        return (
+          <section className="history-month" key={month} aria-label={label}>
+            <h3>{label}</h3>
+            <ul>
+              {visible.map(({ date, count, match }) => (
+                <li key={date}>
+                  <button type="button" className="history-page" onClick={() => onOpenDate(date)}>
+                    <span className="history-page-label">
+                      <time dateTime={date}>{historyDay.format(parseDay(date))}</time>
+                      <span>{count} 条</span>
+                    </span>
+                    <span className="history-preview">{match}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      })}
+      {total > limit && <button type="button" className="text-action history-more"
+        onClick={() => setLimit((count) => count + historyBatch)}>再翻一些</button>}
+    </ToolDialog>
+  )
+}
+
 export function BackupDialog({ notebook, onClose }) {
   const picker = useRef(null)
   const [preview, setPreview] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
-  const dates = backupDates(notebook)
+  const dates = writtenDates(notebook)
 
   async function run(task) {
     setBusy(true)

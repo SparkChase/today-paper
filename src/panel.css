@@ -484,12 +484,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   gap: 0 8px;
   margin: -6px 0 5px;
 }
-.archive-action {
-  margin-inline-start: auto;
+.history-action, .archive-action {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
+.archive-action { margin-inline-start: auto; }
 .stamp-share { display: flex; align-items: center; justify-content: flex-end; gap: 5px; margin-inline-start: auto; }
 .stamp-share .done-stamp { position: static; }
 .stamp-share button { color: #365e49; }
@@ -521,6 +521,61 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+.history-filters input, .history-filters select {
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 7px;
+  border: 1px solid #a29881;
+  border-radius: 4px 3px 5px 2px;
+  background: #fffdf4;
+  font: inherit;
+  font-size: 12px;
+}
+.history-filters input { flex: 1 1 9em; }
+.history-filters select:focus-visible { outline: 2px solid var(--ll-focus); outline-offset: 2px; }
+.history-count {
+  margin: 8px 0 0;
+  color: var(--muted-ink);
+  font-size: 12px;
+}
+.history-month { margin-top: 13px; }
+.history-month h3 {
+  margin: 0 0 4px;
+  color: #365e49;
+  font: 800 15px/1.5 var(--heading-font);
+}
+.history-month ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.history-month li { border-bottom: 1px dashed var(--faint-line); }
+.history-page {
+  display: block;
+  width: 100%;
+  padding: 6px 5px;
+  text-align: start;
+  border-radius: 4px;
+}
+.history-page:hover { background: #f1e7ccaf; }
+.history-page-label { display: flex; justify-content: space-between; gap: 6px; font-weight: 700; }
+.history-page-label span { font-size: 11px; color: var(--muted-ink); font-weight: 400; }
+.history-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--muted-ink);
+  font-size: 12px;
+}
+.history-more { display: block; margin: 8px auto 0; }
 .archive-envelope {
   isolation: isolate;
   position: relative;

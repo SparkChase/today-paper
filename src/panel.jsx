@@ -9,9 +9,9 @@ import { InkProvider } from '@/lib/ink/react'
 import '../vendor/looseleaf/styles/looseleaf.css'
 import './panel.css'
 import { offsetDay, parseDay } from './dates.js'
-import { pageEntries } from './notebook.js'
+import { hasPageEntries, pageEntries } from './notebook.js'
 import { NoteSection } from './notes.jsx'
-import { BackupDialog, ShareDialog } from './paper-tools.jsx'
+import { BackupDialog, HistoryDialog, ShareDialog } from './paper-tools.jsx'
 import { useNotebook, useToday } from './use-notebook.js'
 
 const edge = { left: 'torn', bottom: 'deckle' }
@@ -149,7 +149,7 @@ function App() {
   )
   const tasks = notebook ? pageEntries(notebook, date, 'tasks') : []
   const stamped = tasks.length > 0 && tasks.every(({ done }) => done)
-  const hasEntries = Object.values(notebook?.pages[date] ?? {}).some((entries) => entries.length > 0)
+  const hasEntries = hasPageEntries(notebook?.pages[date])
   const share = () => setPaperTool({ type: 'share', date })
   const copiedIds = new Set(Object.values(notebook?.pages[today] ?? {}).flatMap(
     (entries) => entries.map((entry) => entry.copiedFrom),
@@ -183,6 +183,9 @@ function App() {
           </header>
           {notebook && (
             <div className="page-tools">
+              <button type="button" className="text-action history-action" onClick={() => setPaperTool({ type: 'history' })}>
+                <Icon name="book-open" size={15} />翻旧纸
+              </button>
               {!current && (
                 <button type="button" className="text-action return-action" onClick={() => select(today)}>
                   <Icon name="arrow-right" size={15} />回到今天
@@ -237,6 +240,8 @@ function App() {
         </Paper>
       </div>
       {addingSection && <NewSection onClose={() => setAddingSection(false)} save={save} />}
+      {paperTool?.type === 'history' && <HistoryDialog notebook={notebook} today={today}
+        onOpenDate={(key) => { select(key); setPaperTool(null) }} onClose={() => setPaperTool(null)} />}
       {paperTool?.type === 'backup' && <BackupDialog notebook={notebook} onClose={() => setPaperTool(null)} />}
       {paperTool?.type === 'share' && <ShareDialog notebook={notebook} date={paperTool.date} onClose={() => setPaperTool(null)} />}
     </main>

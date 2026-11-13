@@ -1,7 +1,7 @@
 import { extension } from './extension-api.js'
 import { imageKey, isPreparedImage } from './attachments.js'
 import { dateKey, parseDay } from './dates.js'
-import { initialNotebook, pageEntries, STORAGE_KEY } from './notebook.js'
+import { hasPageEntries, initialNotebook, pageEntries, STORAGE_KEY } from './notebook.js'
 
 const format = 'today-paper'
 const version = 1
@@ -121,7 +121,6 @@ function mergeSections(sections, incoming) {
 }
 
 const content = (entry) => JSON.stringify([entry.text, entry.done, imageIds(entry)])
-const populated = (page) => Object.values(page ?? {}).some((entries) => entries.length)
 
 export async function planImport(storage, backup) {
   const before = storage[STORAGE_KEY] ?? initialNotebook
@@ -175,7 +174,7 @@ export async function planImport(storage, backup) {
         addedOnDate = true
       }
     }
-    if (addedOnDate && !populated(before.pages[date])) summary.pages++
+    if (addedOnDate && !hasPageEntries(before.pages[date])) summary.pages++
   }
   for (const entry of added) {
     if (entry.copiedFrom) entry.copiedFrom = copiedFrom.get(entry.copiedFrom) ?? entry.copiedFrom
@@ -204,8 +203,4 @@ export async function commitImport(backup, revision) {
     }
     return { summary: plan.summary }
   })
-}
-
-export function backupDates(notebook) {
-  return Object.keys(notebook.pages).filter((date) => populated(notebook.pages[date])).sort()
 }
